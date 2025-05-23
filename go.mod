@@ -8,6 +8,7 @@ require (
 	github.com/bnb-chain/tss-lib/v2 v2.0.2
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4
 	github.com/ethereum/go-ethereum v1.15.11
+	github.com/gorilla/websocket v1.4.2
 	github.com/mr-tron/base58 v1.2.0
 )
 
