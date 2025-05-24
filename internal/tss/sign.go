@@ -1,1 +1,5 @@
 package tss
+
+func SignStart() {
+
+}

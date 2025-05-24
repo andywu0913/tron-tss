@@ -23,7 +23,7 @@ const (
 	keygenFile            = "keygen2.json"
 	parties               = 5
 	threshold             = 2
-	timeout               = 60 * time.Second
+	timeout               = 3 * 60 * time.Second
 )
 
 const (
