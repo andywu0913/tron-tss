@@ -2,8 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/ecdsa"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,7 +11,6 @@ import (
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/mr-tron/base58/base58"
 )
 
 type Transaction struct {
@@ -45,21 +42,6 @@ type BroadcastResponse struct {
 	TxID    string `json:"txid,omitempty"`
 	Code    string `json:"code,omitempty"`
 	Message string `json:"message,omitempty"`
-}
-
-func generateTronAddress(publicKeyECDSA *ecdsa.PublicKey) (string, error) {
-	address := crypto.PubkeyToAddress(*publicKeyECDSA).Hex()
-	address = "41" + address[2:]
-	addb, err := hex.DecodeString(address)
-	if err != nil {
-		return "", fmt.Errorf("generateTronAddress DecodeString fail, err(%v)", err.Error())
-	}
-
-	hash1 := s256(s256(addb))
-	secret := hash1[:4]
-	addb = append(addb, secret...)
-	addr := base58.Encode(addb)
-	return addr, nil
 }
 
 func createTransferTRXTransaction(fromAddress, toAddress string, amountSun int64) (*Transaction, error) {

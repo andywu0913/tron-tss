@@ -4,23 +4,24 @@ import (
 	"encoding/json"
 
 	"github.com/bnb-chain/tss-lib/v2/crypto"
-	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
 	"github.com/bnb-chain/tss-lib/v2/tss"
 )
 
 type SecretManagerPartyConfig struct {
-	Host string
+	Host        string
+	Port        int
+	StoragePath string
 }
 
 const (
-	MsgTypeKeyGenStart        = 10
-	MsgTypeKeyGenCommunicate  = 11
-	MsgTypeKeyGenDone         = 12
-	MsgTypeKeyGenError        = 13
-	MsgTypeSignKeyStart       = 20
-	MsgTypeSignKeyCommunicate = 21
-	MsgTypeSignKeyDone        = 22
-	MsgTypeSignKeyError       = 23
+	MsgTypeKeyGenStart       = 10
+	MsgTypeKeyGenCommunicate = 11
+	MsgTypeKeyGenDone        = 12
+	MsgTypeKeyGenError       = 13
+	MsgTypeSignStart         = 20
+	MsgTypeSignCommunicate   = 21
+	MsgTypeSignDone          = 22
+	MsgTypeSignError         = 23
 )
 
 type Msg struct {
@@ -29,31 +30,40 @@ type Msg struct {
 	Data        json.RawMessage `json:"data"`
 }
 
-type MsgKeyGenStart struct {
+// coordinator -> party
+type KeyGenStartMsg struct {
 	Threshold int                `json:"threshold"`
 	PartyIDs  tss.SortedPartyIDs `json:"party_ids"`
 }
 
-type MsgKeyGenCommunicate struct {
+// party -> coordinator -> party
+type KeyGenCommunicateMsg struct {
 	From        *tss.PartyID   `json:"from"`
 	To          []*tss.PartyID `json:"to"`
 	Msg         *string        `json:"msg"`
 	IsBroadcast *bool          `json:"is_broadcast"`
 }
 
-type MsgKeyGenDone struct {
+// party -> coordinator
+type KeyGenDoneMsg struct {
 	From     *tss.PartyID    `json:"from"`
 	ECDSAPub *crypto.ECPoint `json:"ecdsa_pub"`
 }
 
-type MsgKeyGenError struct {
+// party -> coordinator
+type KeyGenErrorMsg struct {
 	From *tss.PartyID `json:"from"`
 	Err  *string      `json:"error"`
 }
 
-type RequestState struct {
-	ErrCh chan *tss.Error
-	OutCh chan tss.Message
-	EndCh chan *keygen.LocalPartySaveData
-	Party tss.Party
+type SignStartMsg struct {
+}
+
+type SignCommunicateMsg struct {
+}
+
+type SignDoneMsg struct {
+}
+
+type SignErrorMsg struct {
 }

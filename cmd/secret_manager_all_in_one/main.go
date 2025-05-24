@@ -9,6 +9,7 @@ import (
 	"os"
 	"sync/atomic"
 	"time"
+	"tron-tss/internal/utils"
 
 	"github.com/bnb-chain/tss-lib/v2/common"
 	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
@@ -59,7 +60,7 @@ func main() {
 	pubKey := keyData[0].ECDSAPub
 
 	// restore tron address from public key
-	tronAddress, err := generateTronAddress(&ecdsa.PublicKey{
+	tronAddress, err := utils.GenerateTronAddress(&ecdsa.PublicKey{
 		Curve: tss.S256(),
 		X:     pubKey.X(),
 		Y:     pubKey.Y(),
@@ -79,7 +80,7 @@ func main() {
 	if err != nil {
 		log.Panicf("Failed to decode raw data hex: %v", err)
 	}
-	txHash := s256(rawDataHexBytes)
+	txHash := utils.SHA256(rawDataHexBytes)
 	log.Printf("Transaction hash to sign: %x", txHash)
 
 	// sign transaction

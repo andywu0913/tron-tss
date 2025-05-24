@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,13 +8,6 @@ import (
 	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
 	"github.com/bnb-chain/tss-lib/v2/tss"
 )
-
-func s256(s []byte) []byte {
-	h := sha256.New()
-	h.Write(s)
-	bs := h.Sum(nil)
-	return bs
-}
 
 func loadKeygenTestFixtures(qty int, optionalStart ...int) ([]keygen.LocalPartySaveData, tss.SortedPartyIDs, error) {
 	keys := make([]keygen.LocalPartySaveData, 0, qty)

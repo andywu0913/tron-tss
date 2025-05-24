@@ -1,20 +1,23 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
-	secretManager "tron-tss/internal/secret_manager"
+	"tron-tss/config"
+	secretManagerParty "tron-tss/internal/secret_manager_party"
 )
 
 const (
-	partyID = 5
-	addr    = "0.0.0.0:8085"
+	partyID = config.PARTY_5
 )
 
 func main() {
+	addr := fmt.Sprintf("0.0.0.0:%v", config.SecretManagerPartyConfigMap[partyID].Port)
+
 	log.Printf("Starting WebSocket server on %s", addr)
 
-	http.HandleFunc("/", secretManager.HandleConnection(partyID))
+	http.HandleFunc("/", secretManagerParty.HandleConnection(partyID))
 
 	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Panicf("Error starting WebSocket server: %v", err)
