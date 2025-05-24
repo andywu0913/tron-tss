@@ -44,14 +44,14 @@ func main() {
 	keyData, err := loadKeyDataFromFile(keygenFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log.Fatalf("Failed to load key data: %v", err)
+			log.Panicf("Failed to load key data: %v", err)
 		}
 
 		log.Println("Key data not found, generating new key data...")
 
 		keyData, err = gen(parties, threshold, partyIDs)
 		if err != nil {
-			log.Fatalf("Failed to generate key data: %v", err)
+			log.Panicf("Failed to generate key data: %v", err)
 		}
 		saveKeyDataToFile(keygenFile, keyData)
 	}
@@ -65,19 +65,19 @@ func main() {
 		Y:     pubKey.Y(),
 	})
 	if err != nil {
-		log.Fatalf("Failed to generate tron address: %v", err)
+		log.Panicf("Failed to generate tron address: %v", err)
 	}
 	log.Println("Tron Address:", tronAddress)
 
 	// create transaction
 	transaction, err := createTransferTRXTransaction(tronAddress, toAddress, amountTRX*1_000_000)
 	if err != nil {
-		log.Fatalf("Failed to create transaction: %v", err)
+		log.Panicf("Failed to create transaction: %v", err)
 	}
 
 	rawDataHexBytes, err := hex.DecodeString(transaction.RawDataHex)
 	if err != nil {
-		log.Fatalf("Failed to decode raw data hex: %v", err)
+		log.Panicf("Failed to decode raw data hex: %v", err)
 	}
 	txHash := s256(rawDataHexBytes)
 	log.Printf("Transaction hash to sign: %x", txHash)
@@ -85,7 +85,7 @@ func main() {
 	// sign transaction
 	sig, err := sign(threshold, partyIDs, keyData, txHash)
 	if err != nil {
-		log.Fatalf("Failed to sign transaction: %v", err)
+		log.Panicf("Failed to sign transaction: %v", err)
 	}
 
 	// broadcast transaction
@@ -103,14 +103,14 @@ func main() {
 
 	signature, err := findValidRecoveryID(txHash[:], canonicalSig, btcec.NewPublicKey(&x, &y))
 	if err != nil {
-		log.Fatalf("Failed to find valid recovery ID: %v", err)
+		log.Panicf("Failed to find valid recovery ID: %v", err)
 	}
 
 	transaction.Signature = []string{hex.EncodeToString(signature)}
 
 	response, err := broadcastTransaction(transaction)
 	if err != nil {
-		log.Fatalf("Failed to broadcast transaction: %v", err)
+		log.Panicf("Failed to broadcast transaction: %v", err)
 	}
 
 	log.Printf("Transaction broadcasted! Success: %v, TxID: %s", response.Result, response.TxID)
@@ -123,7 +123,7 @@ func gen(participants, threshold int, partyIDs tss.SortedPartyIDs) (keys []keyge
 	fixtures, _, err := loadKeygenTestFixtures(participants)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log.Fatalf("Failed to load test fixtures: %v", err)
+			log.Panicf("Failed to load test fixtures: %v", err)
 		}
 
 		log.Printf("No test fixtures were found, so the safe primes will be generated from scratch. This may take a while...")
@@ -185,7 +185,7 @@ func gen(participants, threshold int, partyIDs tss.SortedPartyIDs) (keys []keyge
 					log.Printf("Message from %v to %v", msg.GetFrom().Id, dest)
 
 					if dest[0].Index == msg.GetFrom().Index {
-						log.Fatalf("party %d tried to send a message to itself (%d)", dest[0].Index, msg.GetFrom().Index)
+						log.Panicf("party %d tried to send a message to itself (%d)", dest[0].Index, msg.GetFrom().Index)
 					}
 					go sharedPartyUpdater(parties[dest[0].Index], msg, errCh)
 				}
@@ -193,8 +193,7 @@ func gen(participants, threshold int, partyIDs tss.SortedPartyIDs) (keys []keyge
 			case saveData := <-endCh:
 				idx, err := saveData.OriginalIndex()
 				if err != nil {
-					log.Fatalf("Error getting original index: %s", err)
-					return
+					log.Panicf("Error getting original index: %s", err)
 				}
 
 				keys[idx] = *saveData
@@ -281,7 +280,7 @@ func sign(threshold int, partyIDs tss.SortedPartyIDs, keys []keygen.LocalPartySa
 					log.Printf("Message from %v to %v", msg.GetFrom().Id, dest)
 
 					if dest[0].Index == msg.GetFrom().Index {
-						log.Fatalf("party %d tried to send a message to itself (%d)", dest[0].Index, msg.GetFrom().Index)
+						log.Panicf("party %d tried to send a message to itself (%d)", dest[0].Index, msg.GetFrom().Index)
 					}
 					go sharedPartyUpdater(parties[dest[0].Index], msg, errCh)
 				}

@@ -139,7 +139,7 @@ func handleGenKeyCommunicate(requestUUID string, data types.MsgGenKeyCommunicate
 	errCh, _, _, party := loadRequestChannel(requestUUID)
 
 	if data.Err != nil {
-		log.Fatalf("get error data: %v", data.Err)
+		log.Panicf("get error data: %v", data.Err)
 		return
 	}
 
@@ -147,19 +147,19 @@ func handleGenKeyCommunicate(requestUUID string, data types.MsgGenKeyCommunicate
 
 	msg, err := base64.StdEncoding.DecodeString(*data.Msg)
 	if err != nil {
-		log.Fatalf("decode msg data failed: %v", err)
+		log.Panicf("decode msg data failed: %v", err)
 		return
 	}
 
 	pMsg, err := tss.ParseWireMessage(msg, data.From, *data.IsBroadcast)
 	if err != nil {
-		log.Fatalf("parse wire message error: %v", err)
+		log.Panicf("parse wire message error: %v", err)
 		errCh <- party.WrapError(err)
 		return
 	}
 
 	if _, err := party.Update(pMsg); err != nil {
-		log.Fatalf("update party state error: %v", err)
+		log.Panicf("update party state error: %v", err)
 		errCh <- err
 	}
 }
@@ -167,7 +167,7 @@ func handleGenKeyCommunicate(requestUUID string, data types.MsgGenKeyCommunicate
 func sendMsg(requestUUID string, conn *websocket.Conn, msg tss.Message) {
 	msgBytes, _, err := msg.WireBytes()
 	if err != nil {
-		log.Fatalf("wire msg bytes error: %v", err)
+		log.Panicf("wire msg bytes error: %v", err)
 	}
 
 	msgEncoded := base64.StdEncoding.EncodeToString(msgBytes)

@@ -57,7 +57,7 @@ func gen() {
 					}
 
 					if data.Err != nil {
-						log.Fatalf("get error data: %v", data.Err)
+						log.Panicf("get error data: %v", data.Err)
 					}
 
 					// TODO: route
@@ -72,10 +72,10 @@ func gen() {
 
 							conn, ok := connMap.Load(p.Id)
 							if !ok {
-								log.Fatalf("fail to load connMap first: %v", p.Id)
+								log.Panicf("fail to load connMap first: %v", p.Id)
 							}
 
-							log.Printf("Sending message to: %+v\n", p)
+							log.Printf("Sending message to: %+v", p)
 							err = routeMsg(conn.(*websocket.Conn), msgStruct)
 							if err != nil {
 								log.Panicf("Fail to send communicate message to slave %v: %v", i, err)
@@ -85,15 +85,15 @@ func gen() {
 						log.Printf("Message from %v to %v", data.From.Id, data.To[0].Id)
 
 						if data.To[0].Index == data.From.Index {
-							log.Fatalf("party %d tried to send a message to itself (%d)", data.To[0].Index, data.From.Index)
+							log.Panicf("party %d tried to send a message to itself (%d)", data.To[0].Index, data.From.Index)
 						}
 
 						conn, ok := connMap.Load(data.To[0].Id)
 						if !ok {
-							log.Fatalf("fail to load connMap second: %v", data.To[0].Id)
+							log.Panicf("fail to load connMap second: %v", data.To[0].Id)
 						}
 
-						log.Printf("Sending message to: %+v\n", data.To[0])
+						log.Printf("Sending message to: %+v", data.To[0])
 						err = routeMsg(conn.(*websocket.Conn), msgStruct)
 						if err != nil {
 							log.Panicf("Fail to send communicate message to slave %v: %v", i, err)

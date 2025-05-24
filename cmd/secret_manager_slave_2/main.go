@@ -17,8 +17,8 @@ func main() {
 	http.HandleFunc("/", secretManager.HandleConnection(id))
 
 	if err := http.ListenAndServe(addr, nil); err != nil {
-		log.Fatalf("Error starting WebSocket server: %v", err)
+		log.Panicf("Error starting WebSocket server: %v", err)
 	}
 
-	log.Printf("WebSocket server started at %s\n", addr)
+	log.Printf("WebSocket server started at %s", addr)
 }
