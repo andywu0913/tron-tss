@@ -6,9 +6,12 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
+	"tron-tss/config"
 	internalTSS "tron-tss/internal/tss"
 	"tron-tss/types"
 
+	"github.com/bnb-chain/tss-lib/v2/crypto"
 	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
 	"github.com/bnb-chain/tss-lib/v2/tss"
 	"github.com/gorilla/websocket"
@@ -31,7 +34,7 @@ func HandleConnection(managerID int) func(w http.ResponseWriter, r *http.Request
 		}
 		defer conn.Close()
 
-		log.Println("Client connected")
+		log.Println("Client connected.")
 
 		for {
 			var msgStruct types.Msg
@@ -42,106 +45,95 @@ func HandleConnection(managerID int) func(w http.ResponseWriter, r *http.Request
 				log.Printf("Error type: %T", err)
 				continue
 			}
-			log.Printf("Received message: type: %v", msgStruct.Type)
 
-			requestUUID := msgStruct.RequestUUID
+			log.Printf("Received message: request_uuid: %v, type: %v", msgStruct.RequestUUID, msgStruct.Type)
 
 			switch msgStruct.Type {
-			case types.MsgTypeGenKeyStart:
-				var data types.MsgGenKeyStart
+			case types.MsgTypeKeyGenStart:
+				var data types.MsgKeyGenStart
 				err := json.Unmarshal(msgStruct.Data, &data)
 				if err != nil {
 					log.Println("Error reading message:", err)
 					continue
 				}
 
-				handleGenKeyStart(managerID, requestUUID, conn, data.Threshold, data.PartyIDs)
+				handleKeyGenStart(managerID, msgStruct.RequestUUID, conn, data.Threshold, data.PartyIDs)
 
-			case types.MsgTypeGenKeyCommunicate:
-				var data types.MsgGenKeyCommunicate
+			case types.MsgTypeKeyGenCommunicate:
+				var data types.MsgKeyGenCommunicate
 				err := json.Unmarshal(msgStruct.Data, &data)
 				if err != nil {
 					log.Println("Error reading message:", err)
 					continue
 				}
 
-				handleGenKeyCommunicate(requestUUID, data)
+				handleKeyGenCommunicate(msgStruct.RequestUUID, data)
+
+			case types.MsgTypeKeyGenError:
+				// TODO: abort key gen process
 			}
 		}
 	}
 }
 
-func handleGenKeyStart(managerID int, requestUUID string, conn *websocket.Conn, threshold int, partyIDs tss.SortedPartyIDs) {
+func handleKeyGenStart(managerID int, requestUUID string, conn *websocket.Conn, threshold int, partyIDs tss.SortedPartyIDs) {
 	errCh := make(chan *tss.Error, len(partyIDs))
 	outCh := make(chan tss.Message, len(partyIDs))
 	endCh := make(chan *keygen.LocalPartySaveData, len(partyIDs))
+	done := make(chan struct{}, 1)
 
 	party := internalTSS.GenStart(managerID, threshold, partyIDs, errCh, outCh, endCh)
-	storeRequestChannel(requestUUID, errCh, outCh, endCh, party)
+	storeRequestState(requestUUID, party, errCh, outCh, endCh)
 
-	done := make(chan struct{}, 1)
 	go func() {
 		for {
 			select {
-			case err := <-errCh:
-				log.Printf("Error: %s", err)
-
-				sendError(requestUUID, conn, err)
-				return
-
 			case msg := <-outCh:
-				// dest := msg.GetTo()
-
 				log.Printf("Send message from %v to %v, isBroadcast: %v", msg.GetFrom().Id, msg.GetTo(), msg.IsBroadcast())
-				sendMsg(requestUUID, conn, msg)
 
-				// if msg.IsBroadcast() { // broadcast
-				// 	log.Printf("Broadcast message from %v to all", msg.GetFrom().Id)
-
-				// 	for _, p := range partyIDs {
-				// 		if p.Index == msg.GetFrom().Index {
-				// 			continue
-				// 		}
-
-				// 		// go sharedPartyUpdater(p, msg, errCh)
-				// 		sendMsg(conn, msg)
-				// 	}
-				// } else { // point-to-point
-				// 	log.Printf("Message from %v to %v", msg.GetFrom().Id, dest)
-
-				// 	if dest[0].Index == msg.GetFrom().Index {
-				// 		log.Fatalf("party %d tried to send a message to itself (%d)", dest[0].Index, msg.GetFrom().Index)
-				// 	}
-
-				// 	// go sharedPartyUpdater(p, msg, errCh)
-				// 	sendMsg(conn, msg)
-				// }
+				sendCommunicateMsg(requestUUID, conn, msg)
 
 			case saveData := <-endCh:
-				log.Printf("Done. Received endCh channel: %+v", saveData)
+				log.Printf("Done. Received endCh channel: %+v", saveData.ECDSAPub)
+
+				sendDoneMsg(requestUUID, conn, party.PartyID(), saveData.ECDSAPub)
+
+				done <- struct{}{}
+				return
+
+			case err := <-errCh:
+				log.Printf("Get error from channel: %s", err)
+
+				sendErrorMsg(requestUUID, conn, party.PartyID(), err)
+
+				done <- struct{}{}
+				return
+
+			case <-time.After(config.Timeout):
+				log.Println("Timeout waiting for keygen! Exiting...")
+
 				done <- struct{}{}
 				return
 			}
 		}
 	}()
 
-	// log.Println("Waiting for keygen to be generated...")
+	// clean up
+	go func() {
+		<-done
+		close(done)
+		close(errCh)
+		close(outCh)
+		close(endCh)
+		destroyRequestState(requestUUID)
 
-	// select {
-	// case <-done:
-	// 	log.Println("Keygen generated successfully!")
-	// case <-time.After(config.Timeout):
-	// 	log.Println("Timeout waiting for keygen! Exiting...")
-	// 	close(done)
-	// }
+		log.Printf("Cleaned up resource for request: %v", requestUUID)
+	}()
+
+	log.Println("Start keygen process...")
 }
-func handleGenKeyCommunicate(requestUUID string, data types.MsgGenKeyCommunicate) {
-	errCh, _, _, party := loadRequestChannel(requestUUID)
-
-	if data.Err != nil {
-		log.Panicf("get error data: %v", data.Err)
-		return
-	}
+func handleKeyGenCommunicate(requestUUID string, data types.MsgKeyGenCommunicate) {
+	party, errCh, _, _ := loadRequestState(requestUUID)
 
 	log.Printf("Get message from slave %v", data.From)
 
@@ -161,10 +153,11 @@ func handleGenKeyCommunicate(requestUUID string, data types.MsgGenKeyCommunicate
 	if _, err := party.Update(pMsg); err != nil {
 		log.Panicf("update party state error: %v", err)
 		errCh <- err
+		return
 	}
 }
 
-func sendMsg(requestUUID string, conn *websocket.Conn, msg tss.Message) {
+func sendCommunicateMsg(requestUUID string, conn *websocket.Conn, msg tss.Message) {
 	msgBytes, _, err := msg.WireBytes()
 	if err != nil {
 		log.Panicf("wire msg bytes error: %v", err)
@@ -175,73 +168,68 @@ func sendMsg(requestUUID string, conn *websocket.Conn, msg tss.Message) {
 	to := msg.GetTo()
 	isBroadcast := msg.IsBroadcast()
 
-	data, _ := json.Marshal(types.MsgGenKeyCommunicate{
-		Msg:         &msgEncoded,
+	data, _ := json.Marshal(types.MsgKeyGenCommunicate{
 		From:        from,
 		To:          to,
+		Msg:         &msgEncoded,
 		IsBroadcast: &isBroadcast,
 	})
 
 	conn.WriteJSON(types.Msg{
 		RequestUUID: requestUUID,
-		Type:        types.MsgTypeGenKeyCommunicate,
+		Type:        types.MsgTypeKeyGenCommunicate,
 		Data:        data,
 	})
 }
 
-func sendError(requestUUID string, conn *websocket.Conn, err error) {
-	e := err.Error()
-
-	data, _ := json.Marshal(types.MsgGenKeyCommunicate{
-		Err: &e,
+func sendDoneMsg(requestUUID string, conn *websocket.Conn, from *tss.PartyID, ecdsaPub *crypto.ECPoint) {
+	data, _ := json.Marshal(types.MsgKeyGenDone{
+		From:     from,
+		ECDSAPub: ecdsaPub,
 	})
 
 	conn.WriteJSON(types.Msg{
 		RequestUUID: requestUUID,
-		Type:        types.MsgTypeGenKeyCommunicate,
+		Type:        types.MsgTypeKeyGenDone,
 		Data:        data,
 	})
 }
 
-func sharedPartyUpdater(party tss.Party, msg tss.Message, errCh chan<- *tss.Error) {
-	// do not send a message from this party back to itself
-	// if party.PartyID() == msg.GetFrom() {
-	// 	return
-	// }
+func sendErrorMsg(requestUUID string, conn *websocket.Conn, from *tss.PartyID, err error) {
+	e := err.Error()
 
-	bz, _, err := msg.WireBytes()
-	if err != nil {
-		errCh <- party.WrapError(err)
-		return
-	}
+	data, _ := json.Marshal(types.MsgKeyGenError{
+		From: from,
+		Err:  &e,
+	})
 
-	pMsg, err := tss.ParseWireMessage(bz, msg.GetFrom(), msg.IsBroadcast())
-	if err != nil {
-		errCh <- party.WrapError(err)
-		return
-	}
-
-	if _, err := party.Update(pMsg); err != nil {
-		errCh <- err
-	}
+	conn.WriteJSON(types.Msg{
+		RequestUUID: requestUUID,
+		Type:        types.MsgTypeKeyGenError,
+		Data:        data,
+	})
 }
 
-func loadRequestChannel(requestUUID string) (errCh chan *tss.Error, outCh chan tss.Message, endCh chan *keygen.LocalPartySaveData, party tss.Party) {
+func loadRequestState(requestUUID string) (party tss.Party, errCh chan *tss.Error, outCh chan tss.Message, endCh chan *keygen.LocalPartySaveData) {
 	requestCh, ok := requestChMap.Load(requestUUID)
 	if !ok {
 		return nil, nil, nil, nil
 	}
 
-	ch := requestCh.(*types.RequestChannel)
+	ch := requestCh.(*types.RequestState)
 
-	return ch.ErrCh, ch.OutCh, ch.EndCh, ch.Party
+	return ch.Party, ch.ErrCh, ch.OutCh, ch.EndCh
 }
 
-func storeRequestChannel(requestUUID string, errCh chan *tss.Error, outCh chan tss.Message, endCh chan *keygen.LocalPartySaveData, party tss.Party) {
-	requestChMap.Store(requestUUID, &types.RequestChannel{
+func storeRequestState(requestUUID string, party tss.Party, errCh chan *tss.Error, outCh chan tss.Message, endCh chan *keygen.LocalPartySaveData) {
+	requestChMap.Store(requestUUID, &types.RequestState{
 		ErrCh: errCh,
 		OutCh: outCh,
 		EndCh: endCh,
 		Party: party,
 	})
+}
+
+func destroyRequestState(requestUUID string) {
+	requestChMap.Delete(requestUUID)
 }

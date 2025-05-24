@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,19 +10,21 @@ import (
 	"sync"
 	"time"
 	"tron-tss/config"
+	"tron-tss/internal/utils"
 	"tron-tss/types"
 
 	"github.com/bnb-chain/tss-lib/v2/tss"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
+
+var connMap sync.Map
 
 func main() {
 	gen()
 }
 
 func gen() {
-	var connMap sync.Map
-	// var endCounter int32
 	done := make(chan struct{}, 1)
 
 	// init conn
@@ -48,72 +51,40 @@ func gen() {
 				log.Printf("Get message from slave %v", i)
 
 				switch msgStruct.Type {
-				case types.MsgTypeGenKeyCommunicate:
-					var data types.MsgGenKeyCommunicate
-					err := json.Unmarshal(msgStruct.Data, &data)
+				case types.MsgTypeKeyGenCommunicate:
+					err = handleKeyGenCommunicate(msgStruct)
 					if err != nil {
-						log.Println("Error reading message:", err)
+						log.Println("Error handleKeyGenCommunicate:", err)
 						continue
 					}
 
-					if data.Err != nil {
-						log.Panicf("get error data: %v", data.Err)
+				case types.MsgTypeKeyGenDone:
+					err = handleKeyGenDone(msgStruct)
+					if err != nil {
+						log.Println("Error handleKeyGenDone:", err)
+						return
 					}
 
-					// TODO: route
-
-					if *data.IsBroadcast { // broadcast
-						log.Printf("Broadcast message from %v to all", data.From.Id)
-
-						for _, p := range generatePartyIDs() {
-							if p.Index == data.From.Index {
-								continue
-							}
-
-							conn, ok := connMap.Load(p.Id)
-							if !ok {
-								log.Panicf("fail to load connMap first: %v", p.Id)
-							}
-
-							log.Printf("Sending message to: %+v", p)
-							err = routeMsg(conn.(*websocket.Conn), msgStruct)
-							if err != nil {
-								log.Panicf("Fail to send communicate message to slave %v: %v", i, err)
-							}
-						}
-					} else { // point-to-point
-						log.Printf("Message from %v to %v", data.From.Id, data.To[0].Id)
-
-						if data.To[0].Index == data.From.Index {
-							log.Panicf("party %d tried to send a message to itself (%d)", data.To[0].Index, data.From.Index)
-						}
-
-						conn, ok := connMap.Load(data.To[0].Id)
-						if !ok {
-							log.Panicf("fail to load connMap second: %v", data.To[0].Id)
-						}
-
-						log.Printf("Sending message to: %+v", data.To[0])
-						err = routeMsg(conn.(*websocket.Conn), msgStruct)
-						if err != nil {
-							log.Panicf("Fail to send communicate message to slave %v: %v", i, err)
-						}
+				case types.MsgTypeKeyGenError:
+					err = handleKeyGenError(msgStruct)
+					if err != nil {
+						log.Println("Error handleKeyGenError:", err)
+						return
 					}
 				}
-
 			}
 		}(conn)
 	}
 
 	// start gen
-	data, _ := json.Marshal(types.MsgGenKeyStart{
+	data, _ := json.Marshal(types.MsgKeyGenStart{
 		Threshold: config.Threshold,
 		PartyIDs:  generatePartyIDs(),
 	})
 
 	startMsg := types.Msg{
-		RequestUUID: "1",
-		Type:        types.MsgTypeGenKeyStart,
+		RequestUUID: uuid.New().String(),
+		Type:        types.MsgTypeKeyGenStart,
 		Data:        data,
 	}
 
@@ -149,11 +120,95 @@ func generatePartyIDs() tss.SortedPartyIDs {
 	return tss.SortPartyIDs(partyIDs)
 }
 
-var wsMu sync.Mutex
+func handleKeyGenCommunicate(msgStruct types.Msg) error {
+	var data types.MsgKeyGenCommunicate
+	err := json.Unmarshal(msgStruct.Data, &data)
+	if err != nil {
+		return fmt.Errorf("Error unmarshal message: %w", err)
+	}
+
+	if *data.IsBroadcast { // broadcast
+		log.Printf("Broadcast message from %v to all", data.From.Id)
+
+		for _, p := range generatePartyIDs() {
+			if p.Index == data.From.Index {
+				continue
+			}
+
+			conn, ok := connMap.Load(p.Id)
+			if !ok {
+				log.Panicf("fail to load connMap first: %v", p.Id)
+			}
+
+			log.Printf("Sending message to: %+v", p)
+			err = routeMsg(conn.(*websocket.Conn), msgStruct)
+			if err != nil {
+				log.Panicf("Fail to send communicate message to slave %v: %v", p.Id, err)
+			}
+		}
+	} else { // point-to-point
+		log.Printf("Message from %v to %v", data.From.Id, data.To[0].Id)
+
+		if data.To[0].Index == data.From.Index {
+			log.Panicf("party %d tried to send a message to itself (%d)", data.To[0].Index, data.From.Index)
+		}
+
+		conn, ok := connMap.Load(data.To[0].Id)
+		if !ok {
+			log.Panicf("fail to load connMap second: %v", data.To[0].Id)
+		}
+
+		log.Printf("Sending message to: %+v", data.To[0])
+		err = routeMsg(conn.(*websocket.Conn), msgStruct)
+		if err != nil {
+			log.Panicf("Fail to send communicate message to slave %v: %v", data.To[0].Id, err)
+		}
+	}
+
+	return nil
+}
+
+func handleKeyGenDone(msgStruct types.Msg) error {
+	var data types.MsgKeyGenDone
+	err := json.Unmarshal(msgStruct.Data, &data)
+	if err != nil {
+		return fmt.Errorf("Error unmarshal message: %w", err)
+	}
+
+	pubKey := data.ECDSAPub
+
+	// restore tron address from public key
+	tronAddress, err := utils.GenerateTronAddress(&ecdsa.PublicKey{
+		Curve: tss.S256(),
+		X:     pubKey.X(),
+		Y:     pubKey.Y(),
+	})
+	if err != nil {
+		return fmt.Errorf("Failed to generate tron address: %w", err)
+	}
+
+	log.Println("Tron Address:", tronAddress)
+
+	return nil
+}
+
+func handleKeyGenError(msgStruct types.Msg) error {
+	var data types.MsgKeyGenError
+	err := json.Unmarshal(msgStruct.Data, &data)
+	if err != nil {
+		return fmt.Errorf("Error unmarshal message: %w", err)
+	}
+
+	log.Printf("Error key gen from slave %v: %v", data.From.Id, data.Err)
+
+	return nil
+}
+
+var routeMsgMu sync.Mutex
 
 func routeMsg(conn *websocket.Conn, msg types.Msg) error {
-	wsMu.Lock()
-	defer wsMu.Unlock()
+	routeMsgMu.Lock()
+	defer routeMsgMu.Unlock()
 
 	err := conn.WriteJSON(msg)
 	if err != nil {
