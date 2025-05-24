@@ -2,20 +2,12 @@ package utils
 
 import (
 	"crypto/ecdsa"
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/mr-tron/base58"
 )
-
-func SHA256(s []byte) []byte {
-	h := sha256.New()
-	h.Write(s)
-	bs := h.Sum(nil)
-	return bs
-}
 
 func GenerateTronAddress(publicKeyECDSA *ecdsa.PublicKey) (string, error) {
 	address := crypto.PubkeyToAddress(*publicKeyECDSA).Hex()
