@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	SecretManagerSlaveConfigMap = map[int]types.SecretManagerSlaveConfig{
+	SecretManagerPartyConfigMap = map[int]types.SecretManagerPartyConfig{
 		1: {
 			Host: "ws://localhost:8081/",
 		},

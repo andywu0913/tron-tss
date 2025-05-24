@@ -21,7 +21,7 @@ var (
 	requestChMap = sync.Map{}
 )
 
-func HandleConnection(managerID int) func(w http.ResponseWriter, r *http.Request) {
+func HandleConnection(partyID int) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var upgrader = websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
@@ -51,19 +51,21 @@ func HandleConnection(managerID int) func(w http.ResponseWriter, r *http.Request
 			switch msgStruct.Type {
 			case types.MsgTypeKeyGenStart:
 				var data types.MsgKeyGenStart
+
 				err := json.Unmarshal(msgStruct.Data, &data)
 				if err != nil {
-					log.Println("Error reading message:", err)
+					log.Println("Error unmarshal message:", err)
 					continue
 				}
 
-				handleKeyGenStart(managerID, msgStruct.RequestUUID, conn, data.Threshold, data.PartyIDs)
+				handleKeyGenStart(partyID, msgStruct.RequestUUID, conn, data.Threshold, data.PartyIDs)
 
 			case types.MsgTypeKeyGenCommunicate:
 				var data types.MsgKeyGenCommunicate
+
 				err := json.Unmarshal(msgStruct.Data, &data)
 				if err != nil {
-					log.Println("Error reading message:", err)
+					log.Println("Error unmarshal message:", err)
 					continue
 				}
 
@@ -76,13 +78,13 @@ func HandleConnection(managerID int) func(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func handleKeyGenStart(managerID int, requestUUID string, conn *websocket.Conn, threshold int, partyIDs tss.SortedPartyIDs) {
+func handleKeyGenStart(partyID int, requestUUID string, conn *websocket.Conn, threshold int, partyIDs tss.SortedPartyIDs) {
 	errCh := make(chan *tss.Error, len(partyIDs))
 	outCh := make(chan tss.Message, len(partyIDs))
 	endCh := make(chan *keygen.LocalPartySaveData, len(partyIDs))
 	done := make(chan struct{}, 1)
 
-	party := internalTSS.GenStart(managerID, threshold, partyIDs, errCh, outCh, endCh)
+	party := internalTSS.GenStart(partyID, threshold, partyIDs, errCh, outCh, endCh)
 	storeRequestState(requestUUID, party, errCh, outCh, endCh)
 
 	go func() {
@@ -94,7 +96,7 @@ func handleKeyGenStart(managerID int, requestUUID string, conn *websocket.Conn, 
 				sendCommunicateMsg(requestUUID, conn, msg)
 
 			case saveData := <-endCh:
-				log.Printf("Done. Received endCh channel: %+v", saveData.ECDSAPub)
+				log.Printf("Kengen done.")
 
 				sendDoneMsg(requestUUID, conn, party.PartyID(), saveData.ECDSAPub)
 
@@ -133,9 +135,13 @@ func handleKeyGenStart(managerID int, requestUUID string, conn *websocket.Conn, 
 	log.Println("Start keygen process...")
 }
 func handleKeyGenCommunicate(requestUUID string, data types.MsgKeyGenCommunicate) {
-	party, errCh, _, _ := loadRequestState(requestUUID)
+	log.Printf("Get message from party %v", data.From)
 
-	log.Printf("Get message from slave %v", data.From)
+	party, errCh, _, _, ok := loadRequestState(requestUUID)
+	if !ok {
+		log.Panicf("Cannot load request state with request_uuid %v", requestUUID)
+		return
+	}
 
 	msg, err := base64.StdEncoding.DecodeString(*data.Msg)
 	if err != nil {
@@ -210,15 +216,15 @@ func sendErrorMsg(requestUUID string, conn *websocket.Conn, from *tss.PartyID, e
 	})
 }
 
-func loadRequestState(requestUUID string) (party tss.Party, errCh chan *tss.Error, outCh chan tss.Message, endCh chan *keygen.LocalPartySaveData) {
+func loadRequestState(requestUUID string) (party tss.Party, errCh chan *tss.Error, outCh chan tss.Message, endCh chan *keygen.LocalPartySaveData, ok bool) {
 	requestCh, ok := requestChMap.Load(requestUUID)
 	if !ok {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, false
 	}
 
 	ch := requestCh.(*types.RequestState)
 
-	return ch.Party, ch.ErrCh, ch.OutCh, ch.EndCh
+	return ch.Party, ch.ErrCh, ch.OutCh, ch.EndCh, true
 }
 
 func storeRequestState(requestUUID string, party tss.Party, errCh chan *tss.Error, outCh chan tss.Message, endCh chan *keygen.LocalPartySaveData) {

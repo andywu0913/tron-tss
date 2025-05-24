@@ -8,7 +8,7 @@ import (
 	"github.com/bnb-chain/tss-lib/v2/tss"
 )
 
-type SecretManagerSlaveConfig struct {
+type SecretManagerPartyConfig struct {
 	Host string
 }
 

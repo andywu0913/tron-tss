@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -28,14 +27,14 @@ func gen() {
 	done := make(chan struct{}, 1)
 
 	// init conn
-	for i, config := range config.SecretManagerSlaveConfigMap {
+	for i, config := range config.SecretManagerPartyConfigMap {
 		conn, _, err := websocket.DefaultDialer.Dial(config.Host, nil)
 		if err != nil {
-			log.Printf("Error connecting to slave %v: %v", i, err)
+			log.Printf("Error connecting to party %v: %v", i, err)
 			continue
 		}
 
-		log.Printf("Connected to secret manager slave %v", i)
+		log.Printf("Connected to secret manager party %v", i)
 
 		connMap.Store(strconv.Itoa(i), conn)
 
@@ -45,10 +44,10 @@ func gen() {
 
 				err := conn.ReadJSON(&msgStruct)
 				if err != nil {
-					log.Panicf("Error reading message from slave %v: %v", i, err)
+					log.Panicf("Error reading message from party %v: %v", i, err)
 				}
-				// log.Printf("Message from slave %v: %+v", i, msgStruct)
-				log.Printf("Get message from slave %v", i)
+				// log.Printf("Message from party %v: %+v", i, msgStruct)
+				log.Printf("Get message from party %v", i)
 
 				switch msgStruct.Type {
 				case types.MsgTypeKeyGenCommunicate:
@@ -93,7 +92,7 @@ func gen() {
 
 		err := conn.WriteJSON(startMsg)
 		if err != nil {
-			log.Panicf("Fail to send start gen message to slave %v: %v", i, err)
+			log.Panicf("Fail to send start gen message to party %v: %v", i, err)
 		}
 	}
 
@@ -109,9 +108,9 @@ func gen() {
 }
 
 func generatePartyIDs() tss.SortedPartyIDs {
-	partyIDs := make([]*tss.PartyID, 0, len(config.SecretManagerSlaveConfigMap))
+	partyIDs := make([]*tss.PartyID, 0, len(config.SecretManagerPartyConfigMap))
 
-	for i, _ := range config.SecretManagerSlaveConfigMap {
+	for i, _ := range config.SecretManagerPartyConfigMap {
 		key := big.NewInt(int64(i))
 		// partyIDs[i] = tss.NewPartyID(fmt.Sprintf("%d", i), fmt.Sprintf("P%d", i), key)
 		partyIDs = append(partyIDs, tss.NewPartyID(fmt.Sprintf("%d", i), fmt.Sprintf("P%d", i), key))
@@ -122,6 +121,7 @@ func generatePartyIDs() tss.SortedPartyIDs {
 
 func handleKeyGenCommunicate(msgStruct types.Msg) error {
 	var data types.MsgKeyGenCommunicate
+
 	err := json.Unmarshal(msgStruct.Data, &data)
 	if err != nil {
 		return fmt.Errorf("Error unmarshal message: %w", err)
@@ -143,7 +143,7 @@ func handleKeyGenCommunicate(msgStruct types.Msg) error {
 			log.Printf("Sending message to: %+v", p)
 			err = routeMsg(conn.(*websocket.Conn), msgStruct)
 			if err != nil {
-				log.Panicf("Fail to send communicate message to slave %v: %v", p.Id, err)
+				log.Panicf("Fail to send communicate message to party %v: %v", p.Id, err)
 			}
 		}
 	} else { // point-to-point
@@ -161,7 +161,7 @@ func handleKeyGenCommunicate(msgStruct types.Msg) error {
 		log.Printf("Sending message to: %+v", data.To[0])
 		err = routeMsg(conn.(*websocket.Conn), msgStruct)
 		if err != nil {
-			log.Panicf("Fail to send communicate message to slave %v: %v", data.To[0].Id, err)
+			log.Panicf("Fail to send communicate message to party %v: %v", data.To[0].Id, err)
 		}
 	}
 
@@ -170,19 +170,13 @@ func handleKeyGenCommunicate(msgStruct types.Msg) error {
 
 func handleKeyGenDone(msgStruct types.Msg) error {
 	var data types.MsgKeyGenDone
+
 	err := json.Unmarshal(msgStruct.Data, &data)
 	if err != nil {
 		return fmt.Errorf("Error unmarshal message: %w", err)
 	}
 
-	pubKey := data.ECDSAPub
-
-	// restore tron address from public key
-	tronAddress, err := utils.GenerateTronAddress(&ecdsa.PublicKey{
-		Curve: tss.S256(),
-		X:     pubKey.X(),
-		Y:     pubKey.Y(),
-	})
+	tronAddress, err := utils.GenerateTronAddress(data.ECDSAPub.ToECDSAPubKey())
 	if err != nil {
 		return fmt.Errorf("Failed to generate tron address: %w", err)
 	}
@@ -194,12 +188,13 @@ func handleKeyGenDone(msgStruct types.Msg) error {
 
 func handleKeyGenError(msgStruct types.Msg) error {
 	var data types.MsgKeyGenError
+
 	err := json.Unmarshal(msgStruct.Data, &data)
 	if err != nil {
 		return fmt.Errorf("Error unmarshal message: %w", err)
 	}
 
-	log.Printf("Error key gen from slave %v: %v", data.From.Id, data.Err)
+	log.Printf("Error key gen from party %v: %v", data.From.Id, data.Err)
 
 	return nil
 }

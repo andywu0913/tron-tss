@@ -7,14 +7,14 @@ import (
 )
 
 const (
-	id   = 4
-	addr = "0.0.0.0:8084"
+	partyID = 5
+	addr    = "0.0.0.0:8085"
 )
 
 func main() {
 	log.Printf("Starting WebSocket server on %s", addr)
 
-	http.HandleFunc("/", secretManager.HandleConnection(id))
+	http.HandleFunc("/", secretManager.HandleConnection(partyID))
 
 	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Panicf("Error starting WebSocket server: %v", err)
