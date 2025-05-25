@@ -1,18 +1,15 @@
 package secret_manager_party
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"log"
 	"net/http"
 	"tron-tss/types"
 
-	"github.com/bnb-chain/tss-lib/v2/crypto"
-	"github.com/bnb-chain/tss-lib/v2/tss"
 	"github.com/gorilla/websocket"
 )
 
-func HandleConnection(partyID int) func(w http.ResponseWriter, r *http.Request) {
+func HandleConnection(partyID string) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var upgrader = websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
@@ -27,8 +24,8 @@ func HandleConnection(partyID int) func(w http.ResponseWriter, r *http.Request) 
 
 		log.Printf("Coordinator connected.")
 
-		keyGenHandler := new(KeyGenHandler)
-		signHandler := new(SignHandler)
+		keyGenHandler := NewKeyGenHandler(conn)
+		signHandler := NewSignHandler(conn)
 
 		for {
 			var msgStruct types.Msg
@@ -56,7 +53,7 @@ func HandleConnection(partyID int) func(w http.ResponseWriter, r *http.Request) 
 					continue
 				}
 
-				keyGenHandler.handleIncomingStartMsg(partyID, msgStruct.RequestUUID, conn, data.Threshold, data.PartyIDs)
+				keyGenHandler.handleIncomingStartMsg(partyID, msgStruct.RequestUUID, data)
 
 			case types.MsgTypeKeyGenCommunicate:
 				var data types.KeyGenCommunicateMsg
@@ -81,6 +78,8 @@ func HandleConnection(partyID int) func(w http.ResponseWriter, r *http.Request) 
 					continue
 				}
 
+				signHandler.handleIncomingStartMsg(partyID, msgStruct.RequestUUID, data)
+
 			case types.MsgTypeSignCommunicate:
 				var data types.SignCommunicateMsg
 
@@ -90,73 +89,11 @@ func HandleConnection(partyID int) func(w http.ResponseWriter, r *http.Request) 
 					continue
 				}
 
+				signHandler.handleIncomingCommunicateMsg(data)
+
 			case types.MsgTypeSignError:
 				// TODO: abort key gen process
 			}
 		}
-	}
-}
-
-func sendCommunicateMsg(requestUUID string, conn *websocket.Conn, msg tss.Message) {
-	msgBytes, _, err := msg.WireBytes()
-	if err != nil {
-		log.Panicf("Failed to get wire message bytes: %v", err)
-	}
-
-	msgEncoded := base64.StdEncoding.EncodeToString(msgBytes)
-	from := msg.GetFrom()
-	to := msg.GetTo()
-	isBroadcast := msg.IsBroadcast()
-
-	data, _ := json.Marshal(types.KeyGenCommunicateMsg{
-		From:        from,
-		To:          to,
-		Msg:         &msgEncoded,
-		IsBroadcast: &isBroadcast,
-	})
-
-	err = conn.WriteJSON(types.Msg{
-		RequestUUID: requestUUID,
-		Type:        types.MsgTypeKeyGenCommunicate,
-		Data:        data,
-	})
-
-	if err != nil {
-		log.Printf("Failed to send communicate message: %v", err)
-	}
-}
-
-func sendDoneMsg(requestUUID string, conn *websocket.Conn, from *tss.PartyID, ecdsaPub *crypto.ECPoint) {
-	data, _ := json.Marshal(types.KeyGenDoneMsg{
-		From:     from,
-		ECDSAPub: ecdsaPub,
-	})
-
-	err := conn.WriteJSON(types.Msg{
-		RequestUUID: requestUUID,
-		Type:        types.MsgTypeKeyGenDone,
-		Data:        data,
-	})
-
-	if err != nil {
-		log.Printf("Failed to send done message: %v", err)
-	}
-}
-
-func sendErrorMsg(requestUUID string, conn *websocket.Conn, from *tss.PartyID, err error) {
-	e := err.Error()
-
-	data, _ := json.Marshal(types.KeyGenErrorMsg{
-		From: from,
-		Err:  &e,
-	})
-
-	err = conn.WriteJSON(types.Msg{
-		RequestUUID: requestUUID,
-		Type:        types.MsgTypeKeyGenError,
-		Data:        data,
-	})
-	if err != nil {
-		log.Printf("Failed to send error message: %v", err)
 	}
 }

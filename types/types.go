@@ -3,7 +3,6 @@ package types
 import (
 	"encoding/json"
 
-	"github.com/bnb-chain/tss-lib/v2/crypto"
 	"github.com/bnb-chain/tss-lib/v2/tss"
 )
 
@@ -46,8 +45,8 @@ type KeyGenCommunicateMsg struct {
 
 // party -> coordinator
 type KeyGenDoneMsg struct {
-	From     *tss.PartyID    `json:"from"`
-	ECDSAPub *crypto.ECPoint `json:"ecdsa_pub"`
+	From    *tss.PartyID `json:"from"`
+	Address string       `json:"address"`
 }
 
 // party -> coordinator
@@ -57,13 +56,25 @@ type KeyGenErrorMsg struct {
 }
 
 type SignStartMsg struct {
+	FromAddress string             `json:"from_address"`
+	MessageHash []byte             `json:"msg_hash"`
+	Threshold   int                `json:"threshold"`
+	PartyIDs    tss.SortedPartyIDs `json:"party_ids"`
 }
 
 type SignCommunicateMsg struct {
+	From        *tss.PartyID   `json:"from"`
+	To          []*tss.PartyID `json:"to"`
+	Msg         *string        `json:"msg"`
+	IsBroadcast *bool          `json:"is_broadcast"`
 }
 
 type SignDoneMsg struct {
+	From      *tss.PartyID `json:"from"`
+	Signature string       `json:"signature"`
 }
 
 type SignErrorMsg struct {
+	From *tss.PartyID `json:"from"`
+	Err  *string      `json:"error"`
 }

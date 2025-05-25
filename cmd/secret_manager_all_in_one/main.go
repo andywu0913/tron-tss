@@ -9,6 +9,7 @@ import (
 	"os"
 	"sync/atomic"
 	"time"
+	"tron-tss/internal/tron"
 	"tron-tss/internal/utils"
 
 	"github.com/bnb-chain/tss-lib/v2/common"
@@ -19,7 +20,7 @@ import (
 )
 
 const (
-	testFixtureDirFormat  = "/Users/user/Documents/test_golang/mpc_final/ecdsa_fixtures"
+	testFixtureDirFormat  = "/Users/user/Projects/tron-tss/ecdsa_fixtures"
 	testFixtureFileFormat = "keygen_data_%d.json"
 	keygenFile            = "keygen2.json"
 	parties               = 5
@@ -28,9 +29,6 @@ const (
 )
 
 const (
-	ApiBaseUrl        = "https://nile.trongrid.io"
-	CreateTxEndpoint  = "/wallet/createtransaction"
-	BroadcastEndpoint = "/wallet/broadcasttransaction"
 
 	// toAddress = "TSe1MQvi6TAFz1h1YLYvVfiyiBkQwQs34v"
 	toAddress = "TMhvZyXm3NgQfhR59gRZwihwjxVSEb9ahH"
@@ -71,7 +69,7 @@ func main() {
 	log.Println("Tron Address:", tronAddress)
 
 	// create transaction
-	transaction, err := createTransferTRXTransaction(tronAddress, toAddress, amountTRX*1_000_000)
+	transaction, err := tron.CreateTransferTRXTransaction(tronAddress, toAddress, amountTRX*1_000_000)
 	if err != nil {
 		log.Panicf("Failed to create transaction: %v", err)
 	}
@@ -93,7 +91,7 @@ func main() {
 	r := new(big.Int).SetBytes(sig.R)
 	s := new(big.Int).SetBytes(sig.S)
 
-	canonicalSig := formatCanonicalSignature(r, s)
+	canonicalSig := utils.FormatCanonicalSignature(r, s)
 	log.Printf("Canonical signature (r||s): %x", canonicalSig)
 
 	var x btcec.FieldVal
@@ -102,14 +100,14 @@ func main() {
 	x.SetByteSlice(pubKey.X().Bytes())
 	y.SetByteSlice(pubKey.Y().Bytes())
 
-	signature, err := findValidRecoveryID(txHash[:], canonicalSig, btcec.NewPublicKey(&x, &y))
+	signature, err := utils.FindValidRecoveryID(txHash[:], canonicalSig, btcec.NewPublicKey(&x, &y))
 	if err != nil {
 		log.Panicf("Failed to find valid recovery ID: %v", err)
 	}
 
 	transaction.Signature = []string{hex.EncodeToString(signature)}
 
-	response, err := broadcastTransaction(transaction)
+	response, err := tron.BroadcastTransaction(transaction)
 	if err != nil {
 		log.Panicf("Failed to broadcast transaction: %v", err)
 	}

@@ -7,7 +7,7 @@ import (
 	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
 )
 
-func StoreLocalPartyData(partyID int, dirPath string, filename string, saveData *keygen.LocalPartySaveData) error {
+func StoreLocalPartyData(partyID string, dirPath string, filename string, saveData *keygen.LocalPartySaveData) error {
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
 		if err := os.MkdirAll(dirPath, 0700); err != nil {
 			return err
@@ -29,6 +29,25 @@ func StoreLocalPartyData(partyID int, dirPath string, filename string, saveData 
 	return nil
 }
 
-func LoadLocalPartyData(partyID int, filename string) (*keygen.LocalPartySaveData, error) {
-	return nil, nil
+func LoadLocalPartyData(partyID string, dirPath string, filename string) (*keygen.LocalPartySaveData, error) {
+	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(dirPath, 0700); err != nil {
+			return nil, err
+		}
+	}
+
+	fullPath := dirPath + string(os.PathSeparator) + filename
+
+	f, err := os.Open(fullPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var saveData keygen.LocalPartySaveData
+	if err := json.NewDecoder(f).Decode(&saveData); err != nil {
+		return nil, err
+	}
+
+	return &saveData, nil
 }

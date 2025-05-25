@@ -1,5 +1,0 @@
-package tss
-
-func SignStart() {
-
-}

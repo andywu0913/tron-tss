@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math/big"
-	"strconv"
 	"sync"
 	"time"
 	"tron-tss/config"
@@ -26,36 +24,42 @@ type KeyGenRequest struct {
 }
 
 func (r *KeyGenRequest) GenerateTronAddress() (string, error) {
-	r.partyIDs = generatePartyIDs()
+	r.partyIDs = utils.GeneratePartyIDs()
 	var wg sync.WaitGroup
 
 	// init conn
-	for i, config := range config.SecretManagerPartyConfigMap {
+	for _, partyID := range r.partyIDs {
+		config, ok := config.SecretManagerPartyConfigMap[partyID.Id]
+		if !ok {
+			return "", fmt.Errorf("Config not found for partyID %v", partyID.Id)
+		}
+
 		conn, _, err := websocket.DefaultDialer.Dial(
 			fmt.Sprintf("ws://%v:%v/", config.Host, config.Port),
 			nil,
 		)
 		if err != nil {
-			log.Printf("Error connecting to secret manager party %v: %v", i, err)
-			continue
+			return "", fmt.Errorf("Error connecting to secret manager party %v: %v", partyID.Id, err)
 		}
 
-		log.Printf("Connected to secret manager party %v", i)
+		log.Printf("Connected to secret manager party %v", partyID.Id)
 
-		r.connMap.Store(strconv.Itoa(i), conn)
+		r.connMap.Store(partyID.Id, conn)
 
 		wg.Add(1)
 		go func(conn *websocket.Conn) {
+			defer conn.Close()
+
 			for {
 				var msgStruct types.Msg
 
 				err := conn.ReadJSON(&msgStruct)
 				if err != nil {
-					log.Panicf("Error reading message from party %v: %T: %v", i, err, err)
-					// panic: Error reading message from party 4: *net.OpError: read tcp [::1]:51618->[::1]:8084: use of closed network connection
+					log.Printf("Error reading message from party %v: %T: %v", partyID.Id, err, err)
+					break
 				}
-				// log.Printf("Message from party %v: %+v", i, msgStruct)
-				log.Printf("Get message from party %v", i)
+
+				log.Printf("Get message from party %v", partyID.Id)
 
 				switch msgStruct.Type {
 				case types.MsgTypeKeyGenCommunicate:
@@ -71,15 +75,15 @@ func (r *KeyGenRequest) GenerateTronAddress() (string, error) {
 					err = r.handleIncomingDoneMsg(msgStruct)
 					if err != nil {
 						log.Println("Error handleKeyGenDone:", err)
-						return
 					}
+					break
 
 				case types.MsgTypeKeyGenError:
 					err = r.handleIncomingErrorMsg(msgStruct)
 					if err != nil {
 						log.Println("Error handleKeyGenError:", err)
-						return
 					}
+					break
 				}
 			}
 		}(conn)
@@ -124,16 +128,6 @@ func (r *KeyGenRequest) GenerateTronAddress() (string, error) {
 		log.Println("Timeout waiting for keygen. Abort!")
 		err = errors.New("Timeout waiting for keygen. Abort!")
 	}
-
-	// release resource
-	r.connMap.Range(func(i, conn any) bool {
-		_conn := conn.(*websocket.Conn)
-		_conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-
-		_conn.Close()
-		log.Printf("Disconnected to secret manager party %v", i)
-		return true
-	})
 
 	if err != nil {
 		return "", err
@@ -210,14 +204,9 @@ func (r *KeyGenRequest) handleIncomingDoneMsg(msgStruct types.Msg) error {
 		return fmt.Errorf("Error unmarshal message: %w", err)
 	}
 
-	tronAddress, err := utils.GenerateTronAddress(data.ECDSAPub.ToECDSAPubKey())
-	if err != nil {
-		return fmt.Errorf("Failed to generate tron address: %w", err)
-	}
+	log.Printf("Receive generated tron address from %v: %v", data.From.Id, data.Address)
 
-	log.Printf("Receive generated tron address from %v: %v", data.From.Id, tronAddress)
-
-	r.genResult.Store(data.From.Id, tronAddress)
+	r.genResult.Store(data.From.Id, data.Address)
 
 	return nil
 }
@@ -250,18 +239,4 @@ func (r *KeyGenRequest) routeMsg(to string, msg types.Msg) error {
 	}
 
 	return nil
-}
-
-func generatePartyIDs() tss.SortedPartyIDs {
-	partyIDs := make([]*tss.PartyID, 0, len(config.SecretManagerPartyConfigMap))
-
-	for i, _ := range config.SecretManagerPartyConfigMap {
-		partyIDs = append(partyIDs, tss.NewPartyID(
-			fmt.Sprintf("%d", i),
-			fmt.Sprintf("P%d", i),
-			big.NewInt(int64(i)),
-		))
-	}
-
-	return tss.SortPartyIDs(partyIDs)
 }
