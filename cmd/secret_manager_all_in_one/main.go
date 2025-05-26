@@ -20,12 +20,11 @@ import (
 )
 
 const (
-	testFixtureDir        = "./cmd/secret_manager_all_in_one/ecdsa_fixtures"
-	testFixtureFileFormat = "keygen_data_%d.json"
-	keygenFile            = "./cmd/secret_manager_all_in_one/keygen_party_5_threshold_2.json"
-	parties               = 5
-	threshold             = 2
-	timeout               = 3 * 60 * time.Second
+	testFixtures = "./data/%d/ecdsa_fixtures.json"
+	keygenFile   = "./data/all_in_one/keygen_party_5_threshold_2.json"
+	parties      = 5
+	threshold    = 2
+	timeout      = 3 * 60 * time.Second
 )
 
 const (
