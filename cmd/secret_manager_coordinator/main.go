@@ -9,7 +9,7 @@ import (
 
 const (
 	testFromAddress = "TNUDwnN5nPzp8ps3TdPfboSRpkzd6Tz5Eu"
-	toAddress       = "TMhvZyXm3NgQfhR59gRZwihwjxVSEb9ahH"
+	toAddress       = "TSe1MQvi6TAFz1h1YLYvVfiyiBkQwQs34v"
 	amountTRX       = 1
 )
 

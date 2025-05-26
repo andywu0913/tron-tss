@@ -23,7 +23,7 @@ func CreateTransferTRXTransaction(fromAddress, toAddress string, amountSun int64
 		return nil, fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	resp, err := http.Post(config.ApiBaseUrl+config.CreateTxEndpoint, "application/json", bytes.NewBuffer(jsonData))
+	resp, err := http.Post(config.TronAPIBaseUrl+config.CreateTxEndpoint, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("api request failed: %v", err)
 	}
@@ -48,7 +48,7 @@ func BroadcastTransaction(tx *types.Transaction) (*types.BroadcastResponse, erro
 		return nil, fmt.Errorf("failed to marshal transaction: %v", err)
 	}
 
-	resp, err := http.Post(config.ApiBaseUrl+config.BroadcastEndpoint, "application/json", bytes.NewBuffer(jsonData))
+	resp, err := http.Post(config.TronAPIBaseUrl+config.BroadcastEndpoint, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("api request failed: %v", err)
 	}

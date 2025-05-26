@@ -9,6 +9,7 @@ import (
 	"os"
 	"sync/atomic"
 	"time"
+	"tron-tss/config"
 	"tron-tss/internal/tron"
 	"tron-tss/internal/utils"
 
@@ -20,23 +21,17 @@ import (
 )
 
 const (
-	testFixtures = "./data/%d/ecdsa_fixtures.json"
-	keygenFile   = "./data/all_in_one/keygen_party_5_threshold_2.json"
-	parties      = 5
-	threshold    = 2
-	timeout      = 3 * 60 * time.Second
+	testFixturesFile = "./data/%d/ecdsa_fixtures.json"
+	keygenFile       = "./data/all_in_one/keygen_party_5_threshold_2.json"
 )
 
 const (
-
-	// toAddress = "TSe1MQvi6TAFz1h1YLYvVfiyiBkQwQs34v"
-	toAddress = "TMhvZyXm3NgQfhR59gRZwihwjxVSEb9ahH"
-	// toAddress = "TUvcHSxSYCGXRiTPprYU9aEkHfXdVCnTnA"
+	toAddress = "TNUDwnN5nPzp8ps3TdPfboSRpkzd6Tz5Eu"
 	amountTRX = 1
 )
 
 func main() {
-	partyIDs := generatePartyIDs(parties)
+	partyIDs := generatePartyIDs(config.Parties)
 
 	// try to load key data from disk
 	keyData, err := loadKeyDataFromFile(keygenFile)
@@ -47,7 +42,7 @@ func main() {
 
 		log.Println("Key data not found, generating new key data...")
 
-		keyData, err = gen(parties, threshold, partyIDs)
+		keyData, err = gen(config.Parties, config.Threshold, partyIDs)
 		if err != nil {
 			log.Panicf("Failed to generate key data: %v", err)
 		}
@@ -81,7 +76,7 @@ func main() {
 	log.Printf("Transaction hash to sign: %x", txHash)
 
 	// sign transaction
-	sig, err := sign(threshold, partyIDs, keyData, txHash)
+	sig, err := sign(config.Threshold, partyIDs, keyData, txHash)
 	if err != nil {
 		log.Panicf("Failed to sign transaction: %v", err)
 	}
@@ -212,7 +207,7 @@ func gen(participants, threshold int, partyIDs tss.SortedPartyIDs) (keys []keyge
 	select {
 	case <-done:
 		log.Println("Keygen generated successfully!")
-	case <-time.After(timeout):
+	case <-time.After(config.Timeout):
 		log.Println("Timeout waiting for keygen! Exiting...")
 		close(done)
 		return nil, fmt.Errorf("timeout waiting for keygen")
@@ -303,7 +298,7 @@ func sign(threshold int, partyIDs tss.SortedPartyIDs, keys []keygen.LocalPartySa
 	select {
 	case sig = <-done:
 		log.Println("Signature received successfully!")
-	case <-time.After(timeout):
+	case <-time.After(config.Timeout):
 		log.Println("Timeout waiting for signature! Exiting...")
 		close(done)
 		return nil, fmt.Errorf("timeout waiting for signature")

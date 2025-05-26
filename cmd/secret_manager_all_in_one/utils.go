@@ -45,7 +45,7 @@ func loadKeygenTestFixtures(qty int, optionalStart ...int) ([]keygen.LocalPartyS
 }
 
 func makeTestFixtureFilePath(partyIndex int) string {
-	return fmt.Sprintf(testFixtures, partyIndex)
+	return fmt.Sprintf(testFixturesFile, partyIndex)
 }
 
 func loadKeyDataFromFile(filename string) ([]keygen.LocalPartySaveData, error) {

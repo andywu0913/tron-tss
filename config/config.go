@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	ApiBaseUrl        = "https://nile.trongrid.io"
+	TronAPIBaseUrl    = "https://nile.trongrid.io"
 	CreateTxEndpoint  = "/wallet/createtransaction"
 	BroadcastEndpoint = "/wallet/broadcasttransaction"
 )
