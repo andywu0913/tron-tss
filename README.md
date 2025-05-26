@@ -10,12 +10,11 @@ This project provides a demonstration of a distributed secret management system 
 
 ```bash
 cmd/
-    secret_manager_all_in_one/  # All-in-one secret manager for testing/demo
-    secret_manager_coordinator/ # Coordinator node for MPC protocol
-    secret_manager_party_1-5/   # Party nodes for MPC protocol
+    secret_manager_all_in_one/  # All TSS logic in one file for demo
+    secret_manager_coordinator/ # Coordinator node for TSS demo
+    secret_manager_party_1-5/   # Party nodes for for TSS demo
 config/                         # Configuration files and code
-data/                           # Test data and fixtures
-ecdsa_fixtures/                 # ECDSA keygen test data
+data/                           # Test fixtures and checkpoint data
 internal/                       # Internal Go packages (MPC logic, Tron integration, utilities)
 types/                          # Type definitions
 ```
