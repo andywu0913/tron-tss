@@ -1,6 +1,6 @@
 # tron-tss
 
-A demonstration of multi-party threshold secret sharing (TSS) implementation for the Tron blockchain.
+A hello world demonstration of multi-party threshold secret sharing (TSS) implementation for the Tron blockchain.
 
 ## Overview
 
@@ -21,16 +21,28 @@ types/                          # Type definitions
 
 ## Demonstration
 
+There are two ways to try out the demonstration.
+
+### Run in a single process
+
+1. Simply run:
+
+```bash
+go run ./cmd/secret_manager_all_in_one/
+```
+
+### Run in six individual processes (1 coordinator + 5 parties)
+
 1. **Start Party Nodes**
 
 In separate terminals, start each party:
 
 ```bash
-go run ./cmd/secret_manager_party_1
-go run ./cmd/secret_manager_party_2
-go run ./cmd/secret_manager_party_3
-go run ./cmd/secret_manager_party_4
-go run ./cmd/secret_manager_party_5
+go run ./cmd/secret_manager_party_1/
+go run ./cmd/secret_manager_party_2/
+go run ./cmd/secret_manager_party_3/
+go run ./cmd/secret_manager_party_4/
+go run ./cmd/secret_manager_party_5/
 ```
 
 2. **Start the Coordinator**
@@ -38,5 +50,5 @@ go run ./cmd/secret_manager_party_5
 Next, start the coordinator to initiate key generation and signing:
 
 ```bash
-go run ./cmd/secret_manager_coordinator
+go run ./cmd/secret_manager_coordinator/
 ```
