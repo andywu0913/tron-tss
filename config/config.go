@@ -14,7 +14,7 @@ const (
 
 const (
 	Parties   = 5
-	Threshold = 2
+	Threshold = 2 // means at least 3 parties (threshold + 1) must participate in the signing phase
 	Timeout   = 3 * 60 * time.Second
 )
 

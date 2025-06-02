@@ -23,7 +23,7 @@ types/                          # Type definitions
 
 There are two ways to try out the demonstration.
 
-### Run in a single process
+### Single Process Mode
 
 1. Simply run:
 
@@ -31,7 +31,7 @@ There are two ways to try out the demonstration.
 go run ./cmd/secret_manager_all_in_one/
 ```
 
-### Run in six individual processes (1 coordinator + 5 parties)
+### Distributed Mode (1 coordinator + 5 parties)
 
 1. **Start Party Nodes**
 

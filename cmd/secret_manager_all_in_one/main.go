@@ -318,11 +318,6 @@ func generatePartyIDs(n int) tss.SortedPartyIDs {
 	return tss.SortPartyIDs(partyIDs)
 }
 func sharedPartyUpdater(party tss.Party, msg tss.Message, errCh chan<- *tss.Error) {
-	// do not send a message from this party back to itself
-	// if party.PartyID() == msg.GetFrom() {
-	// 	return
-	// }
-
 	bz, _, err := msg.WireBytes()
 	if err != nil {
 		errCh <- party.WrapError(err)
